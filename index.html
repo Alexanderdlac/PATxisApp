@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador y Mapa - Google Maps</title>
+    
+    <!-- ⚠️ REEMPLAZA "TU_API_KEY_DE_GOOGLE" CON TU LLAVE REAL ⚠️ -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBBRi4A6-jF6XUx5i6Em6QK5btf1xeEMMM&libraries=places"></script>
+    
+    <style>
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            font-family: Arial, sans-serif;
+        }
+        #map { height: 100vh; width: 100vw; }
+        
+        /* Caja de búsqueda flotante tipo Google Maps */
+        .search-container {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: white; padding: 10px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 90%; max-width: 450px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .search-container input {
+            padding: 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box;
+        }
+        .info-paso {
+            font-size: 13px; font-weight: bold; color: #333; text-align: center;
+        }
+
+        /* Botón inferior para redirigir a Power Apps */
+        .btn-redirigir {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: #28a745; color: white; padding: 14px 28px;
+            font-size: 18px; font-weight: bold; border: none; border-radius: 8px;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: none;
+            transition: background 0.2s;
+        }
+        .btn-redirigir:hover { background: #218838; }
+    </style>
+</head>
+<body>
+
+    <!-- Buscador flotante con autocompletado de Google -->
+    <div class="search-container">
+        <div class="info-paso" id="textoInstruccion">Paso 1: Busca o haz clic para marcar el <b>Punto A (Origen)</b></div>
+        <input id="buscador" type="text" placeholder="Escribe una avenida, jirón o lugar..." />
+    </div>
+
+    <div id="map"></div>
+
+    <button class="btn-redirigir" id="btnRedirigir" onclick="redirigirAPowerApps()">
+        Redirigir a Power Apps
+    </button>
+
+    <script>
+        var map;
+        var markerA = null;
+        var markerB = null;
+        var coordA = null;
+        var coordB = null;
+        var pasoActual = 'A';
+        var autocomplete;
+
+        function initMap() {
+            var centroLima = { lat: -12.0464, lng: -77.0428 };
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 14,
+                center: centroLima,
+                mapTypeControl: false,
+                streetViewControl: false
+            });
+
+            // 1. Configurar el Autocompletado del buscador de Google
+            var inputBuscador = document.getElementById('buscador');
+            autocomplete = new google.maps.places.Autocomplete(inputBuscador);
+            autocomplete.bindTo('bounds', map);
+
+            // Cuando el usuario selecciona una sugerencia del buscador
+            autocomplete.addListener('place_changed', function() {
+                var place = autocomplete.getPlace();
+                if (!place.geometry || !place.geometry.location) {
+                    alert("No se encontró la ubicación de este lugar.");
+                    return;
+                }
+
+                // Centrar el mapa y colocar el punto según corresponda
+                map.setCenter(place.geometry.location);
+                map.setZoom(16);
+                procesarUbicacion(place.geometry.location);
+            });
+
+            // 2. Evento de clic directo en el mapa
+            map.addListener('click', function(e) {
+                procesarUbicacion(e.latLng);
+            });
+        }
+
+        // Función unificada para manejar tanto el buscador como el clic en el mapa
+        function procesarUbicacion(location) {
+            if (pasoActual === 'A') {
+                coordA = { lat: location.lat(), lng: location.lng() };
+                
+                if (markerA) {
+                    markerA.setPosition(location);
+                } else {
+                    markerA = new google.maps.Marker({
+                        position: location,
+                        map: map,
+                        title: "Punto A (Origen)",
+                        label: "A"
+                    });
+                }
+
+                pasoActual = 'B';
+                document.getElementById('textoInstruccion').innerHTML = 
+                    "Paso 2: Busca o haz clic para marcar el <b>Punto B (Destino)</b>";
+                document.getElementById('buscador').value = ""; // Limpiar caja para el siguiente
+
+            } else if (pasoActual === 'B') {
+                coordB = { lat: location.lat(), lng: location.lng() };
+                
+                if (markerB) {
+                    markerB.setPosition(location);
+                } else {
+                    markerB = new google.maps.Marker({
+                        position: location,
+                        map: map,
+                        title: "Punto B (Destino)",
+                        label: "B",
+                        icon: "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+                    });
+                }
+
+                pasoActual = 'completado';
+                document.getElementById('textoInstruccion').innerHTML = 
+                    "¡Puntos A y B seleccionados correctamente!";
+                document.getElementById('buscador').style.display = 'none'; // Ocultar buscador al terminar
+                document.getElementById('btnRedirigir').style.display = 'block';
+            } else {
+                // Si ya están ambos, permite actualizar el Punto B moviéndolo si lo desea
+                coordB = { lat: location.lat(), lng: location.lng() };
+                markerB.setPosition(location);
+            }
+        }  
+
+        function redirigirAPowerApps() {
+            if (!coordA || !coordB) return;
+
+            // ⚠️ REEMPLAZA ESTA URL CON EL ENLACE WEB REAL DE TU POWER APP ⚠️
+            var urlBasePowerApps = "https://apps.powerapps.com/play/e/default-ae544a57-aecb-4bf9-828a-5b520732b110/a/bb1872f6-b824-4311-9f21-0ecfdad0ea84?tenantId=ae544a57-aecb-4bf9-828a-5b520732b110&hint=ad8518d7-123c-453a-8742-7b9a1b21ef16&sourcetime=1787952843839&source=portal";
+
+            const urlParams = new URLSearchParams(window.location.search);
+            var usuarioParam = urlParams.get('usuario') || '';
+
+            var urlFinal = urlBasePowerApps + 
+                           "latA=" + coordA.lat + "&lonA=" + coordA.lng + 
+                           "&latB=" + coordB.lat + "&lonB=" + coordB.lng + 
+                           "&usr=" + encodeURIComponent(usuarioParam);
+
+            window.location.href = urlFinal;
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
