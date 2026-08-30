@@ -149,7 +149,7 @@
             if (!coordA || !coordB) return;
 
             // ⚠️ REEMPLAZA ESTA URL CON EL ENLACE WEB REAL DE TU POWER APP ⚠️
-            var urlBasePowerApps = "https://apps.powerapps.com/play/e/default-ae544a57-aecb-4bf9-828a-5b520732b110/a/bb1872f6-b824-4311-9f21-0ecfdad0ea84?tenantId=ae544a57-aecb-4bf9-828a-5b520732b110&hint=ad8518d7-123c-453a-8742-7b9a1b21ef16&sourcetime=1787952843839&source=portal?";
+            var urlBasePowerApps = "https://apps.powerapps.com/play/e/default-ae544a57-aecb-4bf9-828a-5b520732b110/a/bb1872f6-b824-4311-9f21-0ecfdad0ea84?tenantId=ae544a57-aecb-4bf9-828a-5b520732b110&hint=ad8518d7-123c-453a-8742-7b9a1b21ef16&sourcetime=1787952843839&source=portal&";
 
             const urlParams = new URLSearchParams(window.location.search);
             var usuarioParam = urlParams.get('usuario') || '';
@@ -157,7 +157,7 @@
             var urlFinal = urlBasePowerApps + 
                            "latA=" + coordA.lat + 
                            "&lonA=" + coordA.lng + 
-                           "latB=" + coordB.lat + 
+                           "&latB=" + coordB.lat + 
                            "&lonB=" + coordB.lng + 
                            "&usr=" + encodeURIComponent(usuarioParam);
 
