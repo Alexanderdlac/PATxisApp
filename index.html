@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Buscador y Mapa - Google Maps</title>
     
-    <!-- ⚠️ REEMPLAZA "TU_API_KEY_DE_GOOGLE" CON TU LLAVE REAL ⚠️ -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBBRi4A6-jF6XUx5i6Em6QK5btf1xeEMMM&libraries=places"></script>
+    <!-- ⚠️ REEMPLAZA "TU_API_KEY_DE_GOOGLE" CON TU LLAVE REAL Y MANTÉN "async defer" ⚠️ -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBBRi4A6-jF6XUx5i6Em6QK5btf1xeEMMM&libraries=places" async defer></script>
     
     <style>
         body, html {
@@ -15,7 +15,6 @@
         }
         #map { height: 100vh; width: 100vw; }
         
-        /* Caja de búsqueda flotante tipo Google Maps */
         .search-container {
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: white; padding: 10px; border-radius: 8px;
@@ -29,7 +28,6 @@
             font-size: 13px; font-weight: bold; color: #333; text-align: center;
         }
 
-        /* Botón inferior para redirigir a Power Apps */
         .btn-redirigir {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: #28a745; color: white; padding: 14px 28px;
@@ -42,7 +40,6 @@
 </head>
 <body>
 
-    <!-- Buscador flotante con autocompletado de Google -->
     <div class="search-container">
         <div class="info-paso" id="textoInstruccion">Paso 1: Busca o haz clic para marcar el <b>Punto A (Origen)</b></div>
         <input id="buscador" type="text" placeholder="Escribe una avenida, jirón o lugar..." />
@@ -58,10 +55,14 @@
         var map;
         var markerA = null;
         var markerB = null;
-        var coordA = null;
-        var coordB = null;
+        
+        // Variables para coordenadas y direcciones escritas
+        var coordA = null, dirA = "";
+        var coordB = null, dirB = "";
+        
         var pasoActual = 'A';
         var autocomplete;
+        var geocoder; // Servicio para traducir coordenadas a texto de dirección
 
         function initMap() {
             var centroLima = { lat: -12.0464, lng: -77.0428 };
@@ -72,12 +73,14 @@
                 streetViewControl: false
             });
 
-            // 1. Configurar el Autocompletado del buscador de Google
+            geocoder = new google.maps.Geocoder();
+
+            // 1. Autocompletado del buscador
             var inputBuscador = document.getElementById('buscador');
             autocomplete = new google.maps.places.Autocomplete(inputBuscador);
             autocomplete.bindTo('bounds', map);
 
-            // Cuando el usuario selecciona una sugerencia del buscador
+            // Cuando seleccionan un lugar del buscador desplegable
             autocomplete.addListener('place_changed', function() {
                 var place = autocomplete.getPlace();
                 if (!place.geometry || !place.geometry.location) {
@@ -85,22 +88,37 @@
                     return;
                 }
 
-                // Centrar el mapa y colocar el punto según corresponda
+                var direccionTexto = place.formatted_address || inputBuscador.value;
                 map.setCenter(place.geometry.location);
                 map.setZoom(16);
-                procesarUbicacion(place.geometry.location);
+                
+                procesarUbicacionCompleta(place.geometry.location, direccionTexto);
             });
 
-            // 2. Evento de clic directo en el mapa
+            // 2. Clic directo en el mapa
             map.addListener('click', function(e) {
-                procesarUbicacion(e.latLng);
+                var clickedLocation = e.latLng;
+
+                // Como es clic en el mapa, consultamos a Google la dirección exacta de esas coordenadas
+                geocoder.geocode({ location: clickedLocation }, function(results, status) {
+                    var direccionTexto = "Ubicación en el mapa";
+                    if (status === "OK" && results[0]) {
+                        direccionTexto = results[0].formatted_address;
+                    }
+                    procesarUbicacionCompleta(clickedLocation, direccionTexto);
+                });
             });
         }
 
-        // Función unificada para manejar tanto el buscador como el clic en el mapa
+        // Procesa la asignación para el Punto A o el Punto B guardando coordenadas y texto
         function procesarUbicacion(location) {
+            // Esta función queda integrada dentro de procesarUbicacionCompleta
+        }
+
+        function procesarUbicacionCompleta(location, direccionTexto) {
             if (pasoActual === 'A') {
                 coordA = { lat: location.lat(), lng: location.lng() };
+                dirA = direccionTexto;
                 
                 if (markerA) {
                     markerA.setPosition(location);
@@ -116,10 +134,11 @@
                 pasoActual = 'B';
                 document.getElementById('textoInstruccion').innerHTML = 
                     "Paso 2: Busca o haz clic para marcar el <b>Punto B (Destino)</b>";
-                document.getElementById('buscador').value = ""; // Limpiar caja para el siguiente
+                document.getElementById('buscador').value = ""; 
 
             } else if (pasoActual === 'B') {
                 coordB = { lat: location.lat(), lng: location.lng() };
+                dirB = direccionTexto;
                 
                 if (markerB) {
                     markerB.setPosition(location);
@@ -136,29 +155,33 @@
                 pasoActual = 'completado';
                 document.getElementById('textoInstruccion').innerHTML = 
                     "¡Puntos A y B seleccionados correctamente!";
-                document.getElementById('buscador').style.display = 'none'; // Ocultar buscador al terminar
+                document.getElementById('buscador').style.display = 'none'; 
                 document.getElementById('btnRedirigir').style.display = 'block';
             } else {
-                // Si ya están ambos, permite actualizar el Punto B moviéndolo si lo desea
+                // Si ya completó ambos y quiere ajustar el punto B moviéndolo de nuevo
                 coordB = { lat: location.lat(), lng: location.lng() };
+                dirB = direccionTexto;
                 markerB.setPosition(location);
             }
-        }  
+        }
 
         function redirigirAPowerApps() {
             if (!coordA || !coordB) return;
 
-            // ⚠️ REEMPLAZA ESTA URL CON EL ENLACE WEB REAL DE TU POWER APP ⚠️
-            var urlBasePowerApps = "https://apps.powerapps.com/play/e/default-ae544a57-aecb-4bf9-828a-5b520732b110/a/bb1872f6-b824-4311-9f21-0ecfdad0ea84?tenantId=ae544a57-aecb-4bf9-828a-5b520732b110&hint=ad8518d7-123c-453a-8742-7b9a1b21ef16&sourcetime=1787952843839&source=portal&";
-
             const urlParams = new URLSearchParams(window.location.search);
             var usuarioParam = urlParams.get('usuario') || '';
 
+            // ⚠️ REEMPLAZA ESTA URL CON EL ENLACE WEB REAL DE TU POWER APP ⚠️
+            var urlBasePowerApps = "https://apps.powerapps.com/play/e/default-ae544a57-aecb-4bf9-828a-5b520732b110/a/bb1872f6-b824-4311-9f21-0ecfdad0ea84?tenantId=ae544a57-aecb-4bf9-828a-5b520732b110&hint=ad8518d7-123c-453a-8742-7b9a1b21ef16&sourcetime=1787952843839&source=portal&";
+
+            // Aquí mandamos coordenadas Y también las direcciones en texto plano (DirA y DirB)
             var urlFinal = urlBasePowerApps + 
                            "latA=" + coordA.lat + 
                            "&lonA=" + coordA.lng + 
+                           "&dirA=" + encodeURIComponent(dirA) +
                            "&latB=" + coordB.lat + 
                            "&lonB=" + coordB.lng + 
+                           "&dirB=" + encodeURIComponent(dirB) +
                            "&usr=" + encodeURIComponent(usuarioParam);
 
             window.location.href = urlFinal;
